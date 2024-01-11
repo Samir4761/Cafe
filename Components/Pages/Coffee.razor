@@ -1,5 +1,136 @@
-﻿<h3>Coffee</h3>
+﻿@page "/coffee"
+@using Cafe.Data
+
+<nav class="navbar navbar-light bg-light justify-content-between">
+    <h1 class="navbar-brand mb-0 h1">Coffee Types Management</h1>
+    <button class="btn btn-primary" @onclick="OpenAddCoffeeTypeDialog">
+        <span class="oi oi-plus" /> Add Coffee Type
+    </button>
+</nav>
+
+<input type="search" class="form-control mb-3" placeholder="Search Coffee Types" @oninput="SearchCoffeeTypeName" />
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Price</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var coffeeType in _coffeeTypes)
+        {
+            <tr>
+                <td>@coffeeType.Name</td>
+                <td>Rs.@coffeeType.Price.ToString("N2")</td>
+                <td>
+                    <button class="btn btn-outline-secondary" @onclick="() => OpenEditCoffeeTypeDialog(coffeeType)">
+                        Edit
+                    </button>
+                    <button class="btn btn-outline-danger" @onclick="() => DeleteCoffeeType(coffeeType.Id)">
+                        Delete
+                    </button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@if (_showCoffeeTypeDialog)
+{
+    <ModalDialog Title="@_coffeeTypeDialogTitle" OnClose="CloseCoffeeTypeDialog">
+        <EditForm Model="_coffeeTypeModel" OnValidSubmit="HandleCoffeeTypeSubmit">
+            <div class="form-floating mb-3">
+                <input type="text" class="form-control" @bind-value="_coffeeTypeModel.Name" placeholder="Coffee Type Name" />
+                <label for="coffeeTypeName">Coffee Type Name</label>
+            </div>
+            <div class="form-floating mb-3">
+                <input type="number" class="form-control" @bind-value="_coffeeTypeModel.Price" placeholder="Price" />
+                <label for="coffeeTypePrice">Price</label>
+            </div>
+            <button type="submit" class="btn btn-primary">@_dialogOkLabel</button>
+        </EditForm>
+    </ModalDialog>
+}
 
 @code {
+    private List<CoffeeType> _coffeeTypes = new List<CoffeeType>();
+    private List<CoffeeType> _originalCoffeeTypes = new List<CoffeeType>();
+    private CoffeeType _coffeeTypeModel = new CoffeeType();
+    private bool _showCoffeeTypeDialog;
+    private string _coffeeTypeDialogTitle;
+    private string _dialogOkLabel;
 
+    protected override void OnInitialized()
+    {
+        _coffeeTypes = CoffeeService.GetAll();
+        _originalCoffeeTypes = new List<CoffeeType>(_coffeeTypes);
+        _coffeeTypes = new List<CoffeeType>(_originalCoffeeTypes);
+    }
+
+    private void OpenAddCoffeeTypeDialog()
+    {
+        _coffeeTypeModel = new CoffeeType();
+        _coffeeTypeDialogTitle = "Add New Coffee Type";
+        _dialogOkLabel = "Add";
+        _showCoffeeTypeDialog = true;
+    }
+
+    private void OpenEditCoffeeTypeDialog(CoffeeType coffeeType)
+    {
+        _coffeeTypeModel = coffeeType;
+        _coffeeTypeDialogTitle = "Edit Coffee Type";
+        _dialogOkLabel = "Save";
+        _showCoffeeTypeDialog = true;
+    }
+
+    private void CloseCoffeeTypeDialog()
+    {
+        _showCoffeeTypeDialog = false;
+    }
+
+    private void HandleCoffeeTypeSubmit()
+    {
+        if (_coffeeTypeModel.Id == Guid.Empty)
+        {
+            _coffeeTypeModel.Id = Guid.NewGuid();
+            CoffeeService.Add(_coffeeTypeModel);
+        }
+        else
+        {
+            CoffeeService.Update(_coffeeTypeModel);
+        }
+
+        _coffeeTypes = CoffeeService.GetAll();
+        CloseCoffeeTypeDialog();
+    }
+
+
+
+    private void DeleteCoffeeType(Guid coffeeTypeId)
+    {
+        CoffeeService.Delete(coffeeTypeId);
+        _coffeeTypes = CoffeeService.GetAll();
+    }
+
+    private void SearchCoffeeTypeName(ChangeEventArgs e)
+    {
+        var searchTerm = e.Value.ToString().ToLower();
+        if (string.IsNullOrWhiteSpace(searchTerm))
+        {
+            _coffeeTypes = new List<CoffeeType>(_originalCoffeeTypes);
+        }
+        else
+        {
+            _coffeeTypes = _originalCoffeeTypes.Where(ct => ct.Name.ToLower().Contains(searchTerm)).ToList();
+        }
+    }
+    private void ValidateCoffeeType(CoffeeType coffeeType)
+    {
+        if (string.IsNullOrWhiteSpace(coffeeType.Name))
+            throw new InvalidOperationException("Coffee type name is required.");
+        if (coffeeType.Price <= 0)
+            throw new InvalidOperationException("Price must be greater than zero.");
+    }
 }

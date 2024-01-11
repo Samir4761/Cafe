@@ -8,7 +8,8 @@ namespace Cafe.Data
         public Guid Id { get; set; } = Guid.NewGuid();
 
         [Required(ErrorMessage = "Please provide the task name.")]
-        public string TaskName { get; set; }
+        public string Name { get; set; }
+        public int Price { get; set; }
         public bool IsDone { get; set; }
 
         [Required(ErrorMessage = "Please provide a due date.")]

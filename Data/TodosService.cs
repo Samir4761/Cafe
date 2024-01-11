@@ -1,4 +1,5 @@
-﻿using Cafe.Data;
+﻿using Cafe.Components.Pages;
+using Cafe.Data;
 using System.Text.Json;
 
 namespace Cafe.Data;
@@ -31,8 +32,21 @@ public static class TodosService
 
         return JsonSerializer.Deserialize<List<TodoItem>>(json);
     }
+    public static List<TodoItem> GetAll()
+    {
+        string appUsersFilePath = Util.GetAppTodosFilePath();
+        if (!File.Exists(appUsersFilePath))
+        {
+            return new List<TodoItem>();
+        }
 
-    public static List<TodoItem> Create(Guid userId, string taskName, DateTime dueDate)
+        var json = File.ReadAllText(appUsersFilePath);
+
+        return JsonSerializer.Deserialize<List<TodoItem>>(json);
+    }
+
+
+    public static List<TodoItem> Create(Guid userId, string taskName, int Price, DateTime dueDate)
     {
         if (dueDate < DateTime.Today)
         {
@@ -42,7 +56,8 @@ public static class TodosService
         List<TodoItem> todos = GetAll(userId);
         todos.Add(new TodoItem
         {
-            TaskName = taskName,
+            Name = taskName,
+            Price  = Price,
             DueDate = dueDate,
             CreatedBy = userId
         });
@@ -74,7 +89,7 @@ public static class TodosService
         }
     }
 
-    public static List<TodoItem> Update(Guid userId, Guid id, string taskName, DateTime dueDate, bool isDone)
+    public static List<TodoItem> Update(Guid userId, Guid id, string taskName, int Price, DateTime dueDate, bool isDone)
     {
         List<TodoItem> todos = GetAll(userId);
         TodoItem todoToUpdate = todos.FirstOrDefault(x => x.Id == id);
@@ -84,9 +99,10 @@ public static class TodosService
             throw new Exception("Todo not found.");
         }
 
-        todoToUpdate.TaskName = taskName;
+        todoToUpdate.Name = taskName;
         todoToUpdate.IsDone = isDone;
         todoToUpdate.DueDate = dueDate;
+        todoToUpdate.Price = Price;
         SaveAll(userId, todos);
         return todos;
     }

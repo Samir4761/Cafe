@@ -1,12 +1,24 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Text.Json;
 
 namespace Cafe.Data
 {
-    internal class OrdersService
+    public class OrderService
     {
+
+        public static List<Orders> GetAll()
+        {
+            string appUsersFilePath = Util.GetAppOrderFilePath();
+            if (!File.Exists(appUsersFilePath))
+            {
+                return new List<Orders>();
+            }
+
+            var json = File.ReadAllText(appUsersFilePath);
+
+            return JsonSerializer.Deserialize<List<Orders>>(json);
+        }
+
+
+
     }
 }

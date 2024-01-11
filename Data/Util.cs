@@ -54,18 +54,25 @@ public static class Util
     {
         return Path.Combine(GetAppDirectoryPath(), "users.json");
     }
+    public static string GetAppCustomerFilePath()
+    {
+        return Path.Combine(GetAppDirectoryPath(), "customer.json");
+    }
+    public static string GetAppOrderFilePath()
+    {
+        return Path.Combine(GetAppDirectoryPath(), "order.json");
+    }
+    public static string GetAppCoffeeFilePath()
+    {
+        return Path.Combine(GetAppDirectoryPath(), "coffee.json");
+    }
 
     public static string GetTodosFilePath(Guid userId)
     {
-        return Path.Combine(GetAppDirectoryPath(), userId.ToString() + "_todos.json");
+        return Path.Combine(GetAppDirectoryPath(), userId.ToString() + "todos.json");
     }
-    public static string GetCustomerFilePath(Guid userId)
+    public static string GetAppTodosFilePath()
     {
-        return Path.Combine(GetAppDirectoryPath(), userId.ToString() + "_customers.json");
-    }
-
-    internal static string GetAppCustomerFilePath()
-    {
-        throw new NotImplementedException();
+        return Path.Combine(GetAppDirectoryPath(), "coffee.json");
     }
 }

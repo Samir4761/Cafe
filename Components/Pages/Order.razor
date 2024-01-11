@@ -1,5 +1,463 @@
-﻿<h3>Order</h3>
+﻿@page "/order"
+@using Cafe.Data
+@using System.Text.Json
+@using iTextSharp.text
+@using iTextSharp.text.pdf
+@inject IJSRuntime JSRuntime
+@using Cafe.Components.Layout
 
+@if (!string.IsNullOrEmpty(_addOrderErrorMessage))
+{
+    <AlertMessage Type="danger" Message="@_addOrderErrorMessage" />
+}
+<nav class="navbar navbar-light bg-light justify-content-between">
+    <h1 class="navbar-brand mb-0 h1">Order</h1>
+    <button class="btn btn-primary" type="button" @onclick="OpenAddCoffeeDialog">
+        <span class="oi oi-plus" /> Add
+    </button>
+</nav>
+<div class="d-flex flex-row align-items-center mb-3">
+
+    <!-- Search Input -->
+    <input type="text" @oninput="SearchTaskName" class="form-control me-2" placeholder="Search..." style="width: auto;" />
+
+    <!-- Date Picker -->
+    <input type="date" @bind="_date" class="form-control me-2" style="width: auto;" />
+
+    <!-- PDF Generate Button -->
+    <button class="btn btn-outline-success" @onclick="GeneratePDF">PDF Generate</button>
+</div>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Customer Name</th>
+            <th>Customer No.</th>
+            <th>Coffee</th>
+            <th>Add-Ins</th>
+            <th>Discount</th>
+            <th>Coffee Price</th>
+            <th>AddIns Price</th>
+            <th>Created At</th>
+
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var data in _order)
+        {
+            <tr>
+                <td>@data.CustomerName</td>
+                <td>@data.CustomerNumber</td>
+                <td>@data.CoffeeName</td>
+                <td>@data.AddInsName</td>
+                <td>@data.Discount</td>
+                <td>@data.CoffeePrice</td>
+                <td>@data.AddInsPrice</td>
+                <td>@data.CreatedAt.ToShortDateString()</td>
+            </tr>
+        }
+    </tbody>
+</table>
+@if (_showAddOrderDialog)
+{
+    <ModalDialog Title="@_dialogTitle" OkLabel="@_dialogOkLabel" OnClose="@OnAddOrderDialogClose">
+        <form>
+
+            <div class="form-floating mb-1">
+                <select class="form-select" @onchange="CoffCalculate">
+                    <option selected>select Coffee</option>
+                    @foreach (var c in _coffee)
+                    {
+                        <option>Name</option>
+                    }
+                </select>
+                <label for="floatingPassword">Coffee</label>
+            </div>
+            <div class="form-floating mb-1">
+                <select class="form-select" @onchange="AddInCalculate">
+                    <option selected>select Add-Ins</option>
+                    @foreach (var c in _addins)
+                    {
+                        <option>Name</option>
+                    }
+                </select>
+                <label for="floatingPassword">Add-Ins</label>
+            </div>
+            <div class="form-floating mb-3">
+                @* <input type="text" class="form-control " @bind="_name" placeholder="Name" /> *@
+                <select class="form-select" @onchange="CustomerCalculate">
+                    <option selected>select customer</option>
+                    @foreach (var c in _customer)
+                    {
+                        <option value="@c.Number">@c.Name</option>
+                    }
+                </select>
+                <label for="floatingInput">Customer</label>
+            </div>
+            <div style="text-align:right;">
+                <label>Coffee Price: @CoffCal</label><br>
+                <label>Add-Ins Price: @AddInCal</label><br>
+                <label>Discount: @_discount</label><br>
+                <label>Total: @Total</label>
+            </div>
+
+
+            @if (!string.IsNullOrEmpty(_addOrderErrorMessage))
+            {
+                <AlertMessage Type="danger" Message="@_addOrderErrorMessage" />
+            }
+
+        </form>
+    </ModalDialog>
+}
+<script>
+    window.saveAsFile = function (fileName, byteBase64, contentType) {
+        try {
+            const link = document.createElement('a');
+            link.href = `data:${contentType};base64,${byteBase64}`;
+            link.download = fileName;
+            link.click();
+            alert('pdf has generated');
+        } catch (error) {
+            console.error('Error occurred during file download:', error);
+            alert('Error occurred during file download:');
+        }
+    };
+
+</script>
 @code {
+    private Guid? _id { get; set; } = null;
+    private DateTime? _date { get; set; }
+    private string _cusName { get; set; }
+    private string _cusNumber { get; set; }
+    private string _coffName { get; set; }
+    private string _discount { get; set; } = "0%";
+    private string _status { get; set; }
+    private string _addInName { get; set; }
+    private GlobalState _globalState { get; set; }
+    private bool _showAddOrderDialog { get; set; }
+    private List<CoffeeType> _coffee { get; set; }
+    private string _addOrderErrorMessage { get; set; }
+    private string _dialogTitle { get; set; }
+    private string _dialogOkLabel { get; set; }
+    private List<Customers> _customer { get; set; }
+    private List<TodoItem> _addins { get; set; }
+    private List<Orders> _order { get; set; }
+    Decimal CoffCal = 0;
+    Decimal AddInCal = 0;
+    Decimal Total = 0;
+    int Count = 0;
+    protected override void OnInitialized()
+    {
+        _order = OrderService.GetAll();
 
+
+    }
+    private async Task GeneratePDF()
+    {
+        List<Orders> cus = OrderService.GetAll();
+
+        // Filter orders for the specified date (_date)
+        List<Orders> customerDate = cus.Where(x =>
+     (x.CreatedAt != null && x.CreatedAt.Date.ToString("dd/MM/yyyy") == (_date.HasValue ? _date.Value.Date.ToString("dd/MM/yyyy") : DateTime.Now.Date.ToString("dd/MM/yyyy")))
+     ).ToList();
+        try
+        {
+            _addOrderErrorMessage = "";
+
+            if (customerDate.Count != 0)
+            {
+                using (MemoryStream memoryStream = new MemoryStream())
+                {
+                    Document document = new Document();
+                    PdfWriter.GetInstance(document, memoryStream);
+                    document.Open();
+
+                    // Create a table in the PDF and add data based on the fetched orders
+                    PdfPTable table = new PdfPTable(5); // Assuming 5 columns for demonstration
+
+                    // Add headers to the table
+                    table.AddCell("Customer Name");
+                    table.AddCell("Customer Number");
+                    table.AddCell("Coffee");
+                    table.AddCell("Add-Ins");
+                    table.AddCell("Total");
+
+                    // Add data rows for each order in customerDate list
+                    foreach (var order in customerDate)
+                    {
+                        table.AddCell(order.CustomerName); // Replace with actual properties from Orders
+                        table.AddCell(order.CustomerNumber.ToString()); // Replace with actual properties from Orders
+                        table.AddCell(order.CoffeeName); // Replace with actual properties from Orders
+                        table.AddCell(order.AddInsName); // Replace with actual properties from Orders
+                        table.AddCell(order.TotalPrice); // Replace with actual properties from Orders
+                    }
+
+                    document.Add(table);
+                    document.Close();
+
+                    byte[] bytes = memoryStream.ToArray();
+                    memoryStream.Close();
+
+
+                    string fileName = $"MonthlyReport_{_date?.ToString("yyyyMMdd") ?? DateTime.MinValue.ToString("yyyyMMdd")}.pdf";
+
+                    await JSRuntime.InvokeVoidAsync("saveAsFile", fileName, Convert.ToBase64String(bytes), "application/pdf");
+                }
+            }
+            else
+            {
+                throw new Exception("There is no any data");
+            }
+        }
+        catch (Exception e)
+        {
+            _addOrderErrorMessage = e.Message;
+        }
+    }
+
+    private void SearchTaskName(ChangeEventArgs e)
+    {
+        var searchTerm = e.Value.ToString();
+        _order = OrderService.GetAll().Where(t =>
+            t.CustomerName.ToLower().Contains(searchTerm.ToLower())).ToList();
+
+
+    }
+
+    private void SortOrders(SortDirection direction)
+    {
+        if (direction == SortDirection.Ascending)
+        {
+            _order = _order.OrderBy(o => o.CustomerName).ToList();
+        }
+        else if (direction == SortDirection.Descending)
+        {
+            _order = _order.OrderByDescending(o => o.CustomerName).ToList();
+        }
+    }
+
+
+    private enum SortDirection
+    {
+        Ascending,
+        Descending
+    }
+
+    private void BubbleSort()
+    {
+        List<Orders> cus = OrderService.GetAll();
+
+        List<string> customerNumbers = cus.Select(c => c.CustomerNumber).ToList();
+
+        bool flag = true;
+        int numLength = customerNumbers.Count;
+
+        for (int i = 1; (i <= (numLength - 1)) && flag; i++)
+        {
+            flag = false;
+            for (int j = 0; j < (numLength - 1); j++)
+            {
+                if (customerNumbers[j + 1].CompareTo(customerNumbers[j]) > 0)
+                {
+                    string temp = customerNumbers[j];
+                    customerNumbers[j] = customerNumbers[j + 1];
+                    customerNumbers[j + 1] = temp;
+                    flag = true;
+                }
+            }
+        }
+
+        List<Orders> sortedOrders = customerNumbers.Select(cn => cus.First(c => c.CustomerNumber == cn)).ToList();
+        _order = sortedOrders;
+
+    }
+
+    private void OpenAddCoffeeDialog()
+    {
+        _dialogTitle = "Add Order";
+        _dialogOkLabel = "Add";
+        _showAddOrderDialog = true;
+
+        _id = null;
+        _customer = CustomerService.GetAll();
+        _coffee = CoffeeService.GetAll();
+        _addins = TodosService.GetAll();
+
+    }
+    private void OnAddOrderDialogClose(bool isCancel)
+    {
+        if (isCancel)
+        {
+
+            _showAddOrderDialog = false;
+        }
+        else
+        {
+            try
+            {
+                _addOrderErrorMessage = "";
+                if (!string.IsNullOrEmpty(_cusName) && !string.IsNullOrEmpty(_coffName.ToString()))
+                {
+                    List<Orders> ord = OrderService.GetAll();
+                    if (string.IsNullOrEmpty(_id.ToString()))
+                    {
+
+                        ord.Add(
+                            new Orders
+                                {
+                                    CustomerName = _cusName,
+                                    CustomerNumber = _cusNumber,
+                                    Discount = _discount,
+                                    CoffeeName = _coffName,
+                                    AddInsName = _addInName,
+                                    CoffeePrice = CoffCal.ToString(),
+                                    AddInsPrice = AddInCal.ToString(),
+                                    TotalPrice = Total.ToString(),
+                                    CreatedAt = DateTime.Now,
+                                }
+                            );
+
+                    }
+                    else
+                    {
+                        // Coffees c = coffee.FirstOrDefault(x => x.Id == _id);
+                        // if (c == null)
+                        // {
+                        //     throw new Exception("Coffee not found.");
+                        // }
+                        // c.Name = _name;
+                        // c.Price = _price;
+                    }
+                    if (!Directory.Exists(Util.GetAppDirectoryPath()))
+                    {
+                        Directory.CreateDirectory(Util.GetAppDirectoryPath());
+                    }
+
+                    var json = JsonSerializer.Serialize(ord);
+                    File.WriteAllText(Util.GetAppOrderFilePath(), json);
+                    _order = OrderService.GetAll();
+                    _showAddOrderDialog = false;
+                    CoffCal = 0;
+                    AddInCal = 0;
+                    Total = 0;
+                    _discount = "0%";
+                    Count = 0;
+                    _cusName = "Select Customer";
+                    _coffName = "Select Coffee";
+                    _addInName = "Select AddIns";
+                }
+                else
+                {
+                    throw new Exception("name or price are empty");
+                }
+
+
+
+            }
+            catch (Exception e)
+            {
+                _addOrderErrorMessage = e.Message;
+            }
+        }
+    }
+
+    private void OpenEditOrderDialog(CoffeeType coff)
+    {
+        _dialogTitle = "Edit Order";
+        _dialogOkLabel = "Update";
+        _id = coff.Id;
+
+        _showAddOrderDialog = true;
+    }
+    private void OpenDeleteOrderDialog(CoffeeType coff)
+    {
+        try
+        {
+            List<CoffeeType> coffee = CoffeeService.GetAll();
+            _id = coff.Id;
+            CoffeeType c = coffee.FirstOrDefault(x => x.Id == _id);
+            if (c == null)
+            {
+                throw new Exception("Coffee not found.");
+            }
+            coffee.Remove(c); if (!Directory.Exists(Util.GetAppDirectoryPath()))
+            {
+                Directory.CreateDirectory(Util.GetAppDirectoryPath());
+            }
+
+            var json = JsonSerializer.Serialize(coffee);
+            File.WriteAllText(Util.GetAppCoffeeFilePath(), json);
+            _coffee = CoffeeService.GetAll();
+
+        }
+        catch (Exception e)
+        {
+            _addOrderErrorMessage = e.Message;
+        }
+
+
+    }
+
+    private void CustomerCalculate(ChangeEventArgs e)
+    {
+        _cusNumber = e.Value.ToString().Trim();
+        List<Customers> cus = CustomerService.GetAll();
+        Customers c = cus.FirstOrDefault(x => x.Number == _cusNumber);
+        List<Orders> ord = OrderService.GetAll();
+        int o = ord.Count(x => x.CustomerNumber == _cusNumber);
+        _cusName = c.Name;
+        _status = c.Status;
+        decimal Sum = CoffCal + AddInCal;
+        if (o == 10)
+        {
+            _discount = "free";
+            Total = 0;
+        }
+        else
+        {
+            if (_status == "Member")
+            {
+                _discount = "10%";
+                decimal discountAmount = 10m / 100m;
+                Total = Sum - (discountAmount * Sum);
+            }
+            else
+            {
+                _discount = "0%";
+                Total = Sum;
+            }
+        }
+
+
+
+    }
+    private void CoffCalculate(ChangeEventArgs e)
+    {
+        _coffName = e.Value.ToString().Trim();
+        List<CoffeeType> Coffe = CoffeeService.GetAll();
+        string searchValue = e.Value.ToString().Trim();
+        CoffeeType data = Coffe.FirstOrDefault(x => x.Name == searchValue);
+        if (data != null)
+        {
+            decimal price = Convert.ToDecimal(data.Price);
+            CoffCal = price;
+
+        }
+
+
+    }
+    private void AddInCalculate(ChangeEventArgs e)
+    {
+        _addInName = e.Value.ToString().Trim();
+        List<TodoItem> a = TodosService.GetAll();
+        string searchValue = e.Value.ToString().Trim();
+        TodoItem data = a.FirstOrDefault(x => x.Name == searchValue);
+        if (data != null)
+        {
+            decimal price = Convert.ToDecimal(data.Price);
+            AddInCal = price;
+
+        }
+    }
 }

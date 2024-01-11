@@ -1,12 +1,21 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.ComponentModel.DataAnnotations;
 
 namespace Cafe.Data
 {
-    internal class Coffees
+    public class Coffee
     {
+        public Guid Id { get; set; } = Guid.NewGuid();
+
+        [Required(ErrorMessage = "Please provide the task name.")]
+        public string Name { get; set; }
+        public string ID { get; set; }
+        public bool IsDone { get; set; }
+
+        [Required(ErrorMessage = "Please provide a due date.")]
+        public DateTime DueDate { get; set; } = DateTime.Today;
+        public Guid CreatedBy { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.Now;
     }
 }
+

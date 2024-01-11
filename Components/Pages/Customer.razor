@@ -1,1 +1,210 @@
-﻿
+﻿@page "/customer"
+@using Cafe.Data
+@using System.Text.Json
+@using Cafe.Components.Layout
+
+
+<nav class="navbar navbar-light bg-light justify-content-between">
+    <h1 class="navbar-brand mb-0 h1">Customer</h1>
+    <button class="btn btn-primary" type="button" @onclick="OpenAddCustomerDialog">
+        <span class="oi oi-plus" /> Add
+    </button>
+</nav>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Number</th>
+            <th>Status</th>
+            <th>Created At</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var data in _customer)
+        {
+            <tr>
+                <td>@data.Name</td>
+                <td>@data.Number</td>
+                <td>@data.Status</td>
+                <td>@data.CreatedAt.ToShortDateString()</td>
+                <td>
+                    <button class="btn btn-outline-secondary" type="button"
+                            @onclick="()=>OpenEditCustomerDialog(data)">
+                        <span class="oi oi-pencil" /> Edit
+                    </button>
+                    <button class="btn btn-outline-danger" type="button" @onclick="()=>OpenDeleteCustomerDialog(data)">
+                        <span class="oi oi-delete" /> Delete
+                    </button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+@if (_showAddCustomerDialog)
+{
+    <ModalDialog Title="@_dialogTitle" OkLabel="@_dialogOkLabel" OnClose="@OnAddCustomerDialogClose">
+        <form>
+            <div class="form-floating mb-3">
+                <input type="text" class="form-control " @bind="_name" placeholder="Name" />
+                <label for="floatingInput">Name</label>
+            </div>
+            <div class="form-floating mb-3">
+                <input type="number" class="form-control " @bind="_number" placeholder="Number" />
+                <label for="floatingPassword">Number</label>
+            </div>
+            <div class="form-floating mb-3">
+                <select class="form-select" @bind="_status">
+                    <option>Select Status</option>
+                    <option>Normal</option>
+                    <option>Member</option>
+                </select>
+                <label for="floatingPassword">Status</label>
+            </div>
+            @if (!string.IsNullOrEmpty(_addCustomerErrorMessage))
+            {
+                <AlertMessage Type="danger" Message="@_addCustomerErrorMessage" />
+            }
+
+        </form>
+    </ModalDialog>
+}
+@code {
+    private Guid? _id { get; set; } = null;
+    private string _name { get; set; }
+    private string _number { get; set; }
+    private string _status { get; set; }
+    private GlobalState _globalState { get; set; }
+    private bool _showAddCustomerDialog { get; set; }
+    private List<Customers> _customer { get; set; }
+    private string _addCustomerErrorMessage { get; set; }
+    private string _dialogTitle { get; set; }
+    private string _dialogOkLabel { get; set; }
+
+    protected override void OnInitialized()
+    {
+        _customer = CustomerService.GetAll();
+    }
+    private void OpenAddCustomerDialog()
+    {
+        _dialogTitle = "Add Customer";
+        _dialogOkLabel = "Add";
+        _showAddCustomerDialog = true;
+        _name = "";
+        _number = "";
+        _id = null;
+
+    }
+    private void OnAddCustomerDialogClose(bool isCancel)
+    {
+        if (isCancel)
+        {
+
+            _showAddCustomerDialog = false;
+        }
+        else
+        {
+            try
+            {
+                _addCustomerErrorMessage = "";
+                if (!string.IsNullOrEmpty(_name) && !string.IsNullOrEmpty(_number.ToString()) && !string.IsNullOrEmpty(_status.ToString()))
+                {
+                    List<Customers> cus = CustomerService.GetAll();
+                    Customers checkNumb = cus.FirstOrDefault(x => x.Number == _number);
+
+                    if (string.IsNullOrEmpty(_id.ToString()))
+                    {
+                        if (checkNumb == null)
+                        {
+                            cus.Add(
+                                new Customers
+                                    {
+                                        Name = _name,
+                                        Number = _number,
+                                        CreatedAt = DateTime.Now,
+                                        Status = _status,
+                                    }
+                                );
+                        }
+                        else
+                        {
+                            throw new Exception("Number already exist!!");
+                        }
+                    }
+                    else
+                    {
+                        Customers c = cus.FirstOrDefault(x => x.Id == _id);
+                        if (c == null)
+                        {
+                            throw new Exception("Customer not found.");
+                        }
+                        c.Name = _name;
+                        c.Number = _number;
+                        c.Status = _status;
+                    }
+                    if (!Directory.Exists(Util.GetAppDirectoryPath()))
+                    {
+                        Directory.CreateDirectory(Util.GetAppDirectoryPath());
+                    }
+
+                    var json = JsonSerializer.Serialize(cus);
+                    File.WriteAllText(Util.GetAppCustomerFilePath(), json);
+                    _customer = CustomerService.GetAll();
+                    _showAddCustomerDialog = false;
+                }
+                else
+                {
+                    throw new Exception("name or Number or status are empty");
+                }
+
+
+
+            }
+            catch (Exception e)
+            {
+                _addCustomerErrorMessage = e.Message;
+            }
+        }
+    }
+
+    private void OpenEditCustomerDialog(Customers cus)
+    {
+        _dialogTitle = "Edit Customer";
+        _dialogOkLabel = "Update";
+        _name = cus.Name;
+        _number = cus.Number;
+        _status = cus.Status;
+        _id = cus.Id;
+
+        _showAddCustomerDialog = true;
+    }
+    private void OpenDeleteCustomerDialog(Customers a)
+    {
+        try
+        {
+            List<Customers> ad = CustomerService.GetAll();
+            _id = a.Id;
+            Customers c = ad.FirstOrDefault(x => x.Id == _id);
+            if (c == null)
+            {
+                throw new Exception("Customer not found.");
+            }
+            ad.Remove(c);
+            if (!Directory.Exists(Util.GetAppDirectoryPath()))
+            {
+                Directory.CreateDirectory(Util.GetAppDirectoryPath());
+            }
+
+            var json = JsonSerializer.Serialize(ad);
+            File.WriteAllText(Util.GetAppCustomerFilePath(), json);
+            _customer = CustomerService.GetAll();
+
+        }
+        catch (Exception e)
+        {
+            _addCustomerErrorMessage = e.Message;
+        }
+
+
+    }
+}
